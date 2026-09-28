@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 /*
 Encode 'in' into (count, value) pairs in 'out'
@@ -32,6 +33,28 @@ size_t rle_encode(const unsigned char *in, size_t n, unsigned char *out) {
     out[num_bytes_written++] = cur_char;
 
     return num_bytes_written;
+}
+
+/* 
+Decodes n bytes of (count, value) pairs from 'in' into 'out'.
+'out_cap' is how many bytes 'out' can hold.
+Returns the number of bytes written, or SIZE_MAX on error.
+*/
+size_t rle_decode(const unsigned char *in, size_t n, unsigned char *out, size_t out_cap) {
+    if ((n % 2) != 0) { // Odd number of bytes, unexpected
+        return SIZE_MAX;
+    }
+
+    int cur_pair = 0;
+    size_t num_bytes_written = 0;
+
+    for (size_t i = 0; i < n; i += 2) {
+        for (size_t j = 0; j < in[cur_pair]) {
+            out[num_bytes_written++] =
+        }
+
+        ++cur_pair;
+    }
 }
 
 int main() {
