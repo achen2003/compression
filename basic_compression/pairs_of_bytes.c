@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 /*
 Encode 'in' into (count, value) pairs in 'out'
@@ -64,28 +65,89 @@ size_t rle_decode(const unsigned char *in, size_t n, unsigned char *out, size_t 
     return num_bytes_written;
 }
 
-int main() {
-    const unsigned char input[] = "AAAAAAAABBBCCCCCCD";
-    unsigned char encoded[2 * sizeof(input)];
-    size_t bytes_encoded = rle_encode(input, sizeof(input) - 1, encoded);
 
-    for (size_t i = 0; i < bytes_encoded; i += 2) {
-        printf("(%d, %c) ", encoded[i], encoded[i + 1]);
+
+int main(int argc, char *argv[]) {
+    unsigned char *input;
+    size_t input_size = 0;
+
+    if (argc <= 1) {
+        input = (unsigned char *) "AAAAAAABBBBBBBBCCCDDE";
+        input_size = strlen((const char*) input);
+    } else {
+        const char *filename = argv[1];
+        FILE *fp = fopen(filename, "rb");
+        if (fp == NULL) {
+            return -1;
+        }
+
+        if (fseek(fp, 0, SEEK_END) != 0) { // Move file pointer to EOF
+            fclose(fp);
+            return -1;
+        }
+
+        long input_len = ftell(fp); // Get cur pos of fp
+        if (input_len < 0) {
+            printf("Invalid file length...\n");
+            return -1;
+        }
+
+        input_size = (size_t)input_len;
+
+        rewind(fp);
+
+        input = malloc(input_size);
+        if (input == NULL) {
+            printf("Malloc failed...\n");
+            return -1;
+        }
+
+        size_t elements_read = fread(input, 1, input_size, fp);
+        if (elements_read != input_size) {
+            printf("File length read != actual file length...\n");
+            return -1;
+        }
+
+        fclose(fp);
     }
 
+    printf("Number of original bytes: %zu\n", input_size);
 
-    unsigned char decoded[sizeof(input)];
-    size_t bytes_decoded = rle_decode(encoded, bytes_encoded, decoded, sizeof(decoded));
-
-    for (size_t i = 0; i < bytes_decoded; ++i) {
-        printf("%c", decoded[i]);
+    unsigned char *encoded = malloc(2 * input_size);
+    if (encoded == NULL) {
+        printf("Encode malloc failed...\n");
+        return -1;
     }
 
-    if (memcmp(input, decoded, sizeof(input)) != 0) {
+    size_t bytes_encoded = rle_encode(input, input_size, encoded);
+
+    // for (size_t i = 0; i < bytes_encoded; i += 2) {
+    //     printf("(%d, %c) ", encoded[i], encoded[i + 1]);
+    // }
+
+    printf("Number of encoded bytes:  %zu\n", bytes_encoded);
+
+    unsigned char *decoded = malloc(input_size);
+    if (decoded == NULL) {
+        printf("Decode malloc failed...\n");
+        return -1;
+    }
+
+    size_t bytes_decoded = rle_decode(encoded, bytes_encoded, decoded, input_size);
+
+    // for (size_t i = 0; i < bytes_decoded; ++i) {
+    //     printf("%c", decoded[i]);
+    // }
+
+    printf("Number of decoded bytes:  %zu\n", bytes_decoded);
+
+    if (memcmp(input, decoded, input_size) != 0) {
         printf("\nDiffers...\n");
     } else {
         printf("\nMatch!\n");
     }
+
+    free(input);
 
     return 0;
 }
