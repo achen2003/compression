@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 /*
 Encode 'in' into (count, value) pairs in 'out'
@@ -35,6 +36,8 @@ size_t rle_encode(const unsigned char *in, size_t n, unsigned char *out) {
     return num_bytes_written;
 }
 
+// (8, A) (3, B) (6, C) (1, D) 
+
 /* 
 Decodes n bytes of (count, value) pairs from 'in' into 'out'.
 'out_cap' is how many bytes 'out' can hold.
@@ -45,26 +48,43 @@ size_t rle_decode(const unsigned char *in, size_t n, unsigned char *out, size_t 
         return SIZE_MAX;
     }
 
-    int cur_pair = 0;
     size_t num_bytes_written = 0;
 
     for (size_t i = 0; i < n; i += 2) {
-        for (size_t j = 0; j < in[cur_pair]) {
-            out[num_bytes_written++] =
+        if (in[i] > (out_cap - num_bytes_written)) { // Writing would cause overflow
+            return SIZE_MAX;
         }
 
-        ++cur_pair;
+        // in[i] = count, in[i+1] = value 
+        memset(out + num_bytes_written, in[i+1], in[i]); // Start at out indexed by num_bytes_written
+
+        num_bytes_written += in[i];
     }
+
+    return num_bytes_written;
 }
 
 int main() {
     const unsigned char input[] = "AAAAAAAABBBCCCCCCD";
-    unsigned char output[2 * sizeof(input)];
+    unsigned char encoded[2 * sizeof(input)];
+    size_t bytes_encoded = rle_encode(input, sizeof(input) - 1, encoded);
 
-    size_t encoded_size = rle_encode(input, sizeof(input) - 1, output);
+    for (size_t i = 0; i < bytes_encoded; i += 2) {
+        printf("(%d, %c) ", encoded[i], encoded[i + 1]);
+    }
 
-    for (size_t i = 0; i < encoded_size; i += 2) {
-        printf("(%d, %c) ", output[i], output[i + 1]);
+
+    unsigned char decoded[sizeof(input)];
+    size_t bytes_decoded = rle_decode(encoded, bytes_encoded, decoded, sizeof(decoded));
+
+    for (size_t i = 0; i < bytes_decoded; ++i) {
+        printf("%c", decoded[i]);
+    }
+
+    if (memcmp(input, decoded, sizeof(input)) != 0) {
+        printf("\nDiffers...\n");
+    } else {
+        printf("\nMatch!\n");
     }
 
     return 0;
