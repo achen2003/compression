@@ -22,7 +22,7 @@ size_t rle_encode(const unsigned char *in, size_t n, unsigned char *out, uint8_t
         return SIZE_MAX;
     }
     
-    const unsigned char *cur_unit = in;
+    const unsigned char *cur_unit = in; // Index pointer, move when value changes
     int cur_num_units = 0;
     size_t num_bytes_written = 0;
 
@@ -54,30 +54,39 @@ size_t rle_encode(const unsigned char *in, size_t n, unsigned char *out, uint8_t
     return num_bytes_written;
 }
 
-// (8, A) (3, B) (6, C) (1, D) 
+// (8, A B C) => 8 repeats of bytes A B C
 
 /* 
 Decodes n bytes of (count, value) pairs from 'in' into 'out'.
-'out_cap' is how many bytes 'out' can hold.
+'original_size' is the size of the data before encoding.
 Returns the number of bytes written, or SIZE_MAX on error.
 */
-size_t rle_decode(const unsigned char *in, size_t n, unsigned char *out, size_t out_cap, uint8_t unit_size) {
-    if ((n % 2) != 0) { // Odd number of bytes, unexpected
+size_t rle_decode(const unsigned char *in, size_t n, unsigned char *out, size_t original_size, uint8_t unit_size) {
+    // Pairs are unit_size + 1 bytes, w/ n - i leftover bytes
+    size_t num_leftover_bytes = original_size % unit_size;
+
+    if (unit_size == 0 || ((n - num_leftover_bytes) % (unit_size + 1)) != 0) { // Check for unusual byte count
         return SIZE_MAX;
     }
 
     size_t num_bytes_written = 0;
+    size_t i;
 
-    for (size_t i = 0; i < n; i += 2) {
-        if (in[i] > (out_cap - num_bytes_written)) { // Writing would cause overflow
+    for (i = 0; i + unit_size < n; i += (unit_size + 1)) { // Increment by (count, value) pair
+        if ((in[i] * unit_size) > (original_size - num_bytes_written)) { // Writing would cause overflow
             return SIZE_MAX;
         }
 
-        // in[i] = count, in[i+1] = value 
-        memset(out + num_bytes_written, in[i+1], in[i]); // Start at out indexed by num_bytes_written
-
-        num_bytes_written += in[i];
+        // in[i] = count, in[i+1] = value extending unit_size bytes
+        for (size_t j = 0; j < in[i]; ++j) {
+            memcpy(out + num_bytes_written, in + i + 1, unit_size);
+            num_bytes_written += unit_size;
+        }
     }
+
+    // Copy leftover bytes at the end directly to the output address
+    memcpy(out + num_bytes_written, in + i, num_leftover_bytes);
+    num_bytes_written += num_leftover_bytes;
 
     return num_bytes_written;
 }
