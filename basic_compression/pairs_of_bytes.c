@@ -7,14 +7,14 @@
 /*
 Encode 'in' into (count, value) pairs in 'out'
 Return the number of bytes written to 'out'
-Output needs to be at least 2*n bytes long (think of ABCD)
+Output needs to be at least 2*n bytes long (think of ABCD) (for unite size of 1)
 */
-size_t rle_encode(const unsigned char *in, size_t n, unsigned char *out, uint8_t unit_size) {
+size_t rle_encode(const unsigned char *in, size_t original_size, unsigned char *out, uint8_t unit_size) {
     /*
     Encoding style - (number of units, value within the unit), (...), ...
     More effective for things like colors, which we can organize with unit sizes of 3
     */
-    if (n == 0) {
+    if (original_size == 0) {
         return 0;
     }
 
@@ -28,7 +28,7 @@ size_t rle_encode(const unsigned char *in, size_t n, unsigned char *out, uint8_t
 
     size_t i;
 
-    for (i = 0; i + unit_size <= n; i += unit_size) { // Make sure there's at least a full unit left to encode
+    for (i = 0; i + unit_size <= original_size; i += unit_size) { // Make sure there's at least a full unit left to encode
         if (cur_num_units >= 255 || memcmp(in + i, cur_unit, unit_size) != 0) { // Max byte size or new unit value found (...AAAAA | BBB...)
             // Write (count, value) pair into out
             out[num_bytes_written++] = cur_num_units; // The count
@@ -42,14 +42,20 @@ size_t rle_encode(const unsigned char *in, size_t n, unsigned char *out, uint8_t
         }
     }
     
-    // Write any remaining chars into a final pair
-    if (cur_num_units > 0) { // Edge case
-        size_t bytes_left = n - i;
+    // Final run: a normal pair, same as in the loop
+    // Writing a (count, value) pair is only triggered if a new unit_size value is found
+    // This never happens for the last pair, so it must be separately written to out
+    if (cur_num_units > 0) {
         out[num_bytes_written++] = cur_num_units;
-        memcpy(out + num_bytes_written, cur_unit, bytes_left);
+        memcpy(out + num_bytes_written, cur_unit, unit_size);
 
-        num_bytes_written += bytes_left;
+        num_bytes_written += unit_size;
     }
+
+    // Leftover bytes that don't fill a unit: copied as-is, always
+    size_t bytes_left = original_size - i;
+    memcpy(out + num_bytes_written, in + i, bytes_left);
+    num_bytes_written += bytes_left;
 
     return num_bytes_written;
 }
@@ -62,12 +68,17 @@ Decodes n bytes of (count, value) pairs from 'in' into 'out'.
 Returns the number of bytes written, or SIZE_MAX on error.
 */
 size_t rle_decode(const unsigned char *in, size_t n, unsigned char *out, size_t original_size, uint8_t unit_size) {
+    if (unit_size == 0) { 
+        return SIZE_MAX;
+    }
+
     // Pairs are unit_size + 1 bytes, w/ n - i leftover bytes
     size_t num_leftover_bytes = original_size % unit_size;
 
-    if (unit_size == 0 || ((n - num_leftover_bytes) % (unit_size + 1)) != 0) { // Check for unusual byte count
+    if (((n - num_leftover_bytes) % (unit_size + 1)) != 0) { // Check for unusual byte count
         return SIZE_MAX;
     }
+
 
     size_t num_bytes_written = 0;
     size_t i;
@@ -87,6 +98,11 @@ size_t rle_decode(const unsigned char *in, size_t n, unsigned char *out, size_t 
     // Copy leftover bytes at the end directly to the output address
     memcpy(out + num_bytes_written, in + i, num_leftover_bytes);
     num_bytes_written += num_leftover_bytes;
+
+    if (num_bytes_written != original_size) {
+        printf("Decode malfunctioned...\n");
+        return SIZE_MAX;
+    }
 
     return num_bytes_written;
 }
@@ -115,7 +131,10 @@ int main(int argc, char *argv[]) {
     int use_file = 0;
     uint8_t unit_size = 3;
 
-    if (argc <= 1) {
+    // ./rle.exe encode red.bmp red.rle
+    // ./rle.exe decode red.rle red_out.bmp
+
+    if (argc < 4) {
         printf("No file provided, defaulting to text\n");
         input = (unsigned char *) "AAAAAAABBBBBBBBCCCDDE";
         input_size = strlen((const char*) input);
@@ -170,6 +189,7 @@ int main(int argc, char *argv[]) {
     size_t bytes_encoded = rle_encode(input, input_size, encoded, unit_size);
     printf("Number of encoded bytes:  %zu\n", bytes_encoded);
 
+    // Write encoded data to a file
     if (argc >= 3) {
         const char *encoded_file = argv[2];
         FILE *fp = fopen(encoded_file, "wb");
