@@ -124,69 +124,87 @@ int write_header(FILE *fp, uint64_t original_size, uint8_t unit_size) {
     return 0;
 }
 
+/*
+Read file path into a buffer
+*/
+unsigned char *read_file(const char *path, size_t *out_size) {
+    FILE *fp = fopen(path, "rb");
+
+    if (fseek(fp, 0, SEEK_END) != 0) { // Move file pointer to EOF
+        fclose(fp);
+        return NULL;
+    }
+
+    long input_len = ftell(fp); // Get current position of fp
+    if (input_len < 0) {
+        printf("Invalid file length...\n");
+        return NULL;
+    }
+
+    file_size = (size_t)input_len;
+    *out_size = file_size;
+
+    rewind(fp);
+
+    unsigned char *buffer = malloc(file_size);
+    if (buffer == NULL) {
+        printf("Malloc failed...\n");
+        return NULL;
+    }
+
+    size_t elements_read = fread(buffer, 1, file_size, fp);
+    if (elements_read != file_size) {
+        printf("File length read != actual file length...\n");
+        return NULL;
+    }
+
+    fclose(fp);
+
+    printf("Number of bytes read from file %s: %zu\n", path, file_size);
+
+    return buffer;
+}
+
 
 int main(int argc, char *argv[]) {
     unsigned char *input;
     size_t input_size = 0;
-    int use_file = 0;
     uint8_t unit_size = 3;
+    bool use_file = false;
 
     // ./rle.exe encode red.bmp red.rle
     // ./rle.exe decode red.rle red_out.bmp
+
+    unsigned char *encoded = NULL;
+    unsigned char *decoded = NULL;
+    size_t bytes_encoded = 0;
+    size_t bytes_decoded = 0;
 
     if (argc < 4) {
         printf("No file provided, defaulting to text\n");
         input = (unsigned char *) "AAAAAAABBBBBBBBCCCDDE";
         input_size = strlen((const char*) input);
     } else {
-        if (strcmp(argv[1], "encode") == 0) { //Encode path ==================================
+        use_file = true;
+
+        if (strcmp(argv[1], "--encode") == 0) { //Encode path ==================================
             // Read the original file and put it into an input buffer
             const char *original_file = argv[2];
-            FILE *fp_orig = fopen(original_file, "rb");
-            if (fp_orig == NULL) {
-                printf("Failed to open original file...\n");
-                return -1;
-            }
 
-            if (fseek(fp_orig, 0, SEEK_END) != 0) { // Move file pointer to EOF
-                fclose(fp_orig);
-                return -1;
-            }
-
-            long input_len = ftell(fp_orig); // Get current position of fp_orig
-            if (input_len < 0) {
-                printf("Invalid file length...\n");
-                return -1;
-            }
-
-            input_size = (size_t)input_len;
-
-            rewind(fp_orig);
-
-            input = malloc(input_size);
+            input = read_file(original_file, &input_size)
             if (input == NULL) {
-                printf("Malloc failed...\n");
+                printf("Failed to open/read original file...\n");
                 return -1;
             }
-
-            size_t elements_read = fread(input, 1, input_size, fp_orig);
-            if (elements_read != input_size) {
-                printf("File length read != actual file length...\n");
-                return -1;
-            }
-
-            fclose(fp_orig);
-
-            printf("Number of original bytes: %zu\n", input_size);
             
             // Encode the original data
-            unsigned char *encoded = malloc(2 * input_size);
+            encoded = malloc(2 * input_size);
             if (encoded == NULL) {
                 printf("Encode malloc failed...\n");
                 return -1;
             }
 
-            size_t bytes_encoded = rle_encode(input, input_size, encoded, unit_size);
+            bytes_encoded = rle_encode(input, input_size, encoded, unit_size);
             printf("Number of encoded bytes:  %zu\n", bytes_encoded);
 
             // Write encoded data to a file
@@ -209,14 +227,18 @@ int main(int argc, char *argv[]) {
             }
 
             fclose(fp_enc);
-        } else if (strcmp(argv[1], "decode") == 0) { // Decode path ==================================
+        } else if (strcmp(argv[1], "--decode") == 0) { // Decode path ==================================
             unsigned char *decoded = malloc(input_size);
             if (decoded == NULL) {
                 printf("Decode malloc failed...\n");
                 return -1;
             }
 
-            size_t bytes_decoded = rle_decode(encoded, bytes_encoded, decoded, input_size, unit_size);
+            if (encoded == NULL) {
+                printf("Haven't encoded this file yet...\n");
+                return -1;
+            }
+            bytes_decoded = rle_decode(encoded, bytes_encoded, decoded, input_size, unit_size);
             printf("Number of decoded bytes:  %zu\n", bytes_decoded);
         } else {
             printf("Please use the format: ./rle.exe --encode/--decode <file_to_enc/dec> <file_out>\n");
@@ -226,14 +248,17 @@ int main(int argc, char *argv[]) {
 
     
 
-    if (memcmp(input, decoded, input_size) != 0) {
-        printf("\nDiffers...\n");
-    } else {
-        printf("\nMatch!\n");
+    // if (memcmp(input, decoded, input_size) != 0) {
+    //     printf("\nDiffers...\n");
+    // } else {
+    //     printf("\nMatch!\n");
+    // }
+
+
+    if (use_file = true) {
+        free(input);
     }
 
-
-    free(input);
     free(encoded);
     free(decoded);
 
