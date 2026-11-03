@@ -167,55 +167,48 @@ unsigned char *read_file(const char *path, size_t *out_size) {
 
 
 int main(int argc, char *argv[]) {
-    unsigned char *input;
-    size_t input_size = 0;
     uint8_t unit_size = 3;
     bool use_file = false;
 
     // ./rle.exe encode red.bmp red.rle
     // ./rle.exe decode red.rle red_out.bmp
 
-    unsigned char *encoded = NULL;
-    unsigned char *decoded = NULL;
-    size_t bytes_encoded = 0;
-    size_t bytes_decoded = 0;
-
     if (argc < 4) {
-        printf("No file provided, defaulting to text\n");
-        input = (unsigned char *) "AAAAAAABBBBBBBBCCCDDE";
-        input_size = strlen((const char*) input);
+        printf("No file provided...\n");
+        // input = (unsigned char *) "AAAAAAABBBBBBBBCCCDDE";
+        // input_size = strlen((const char*) input);
     } else {
         use_file = true;
 
         if (strcmp(argv[1], "--encode") == 0) { //Encode path ==================================
-            // Read the original file and put it into an input buffer
-            const char *original_file = argv[2];
-
-            input = read_file(original_file, &input_size)
-            if (input == NULL) {
+            // Read the original file
+            size_t original_size = 0;
+            const char *original_file_path = argv[2];
+            unsigned char *original_file = read_file(original_file_path, &original_size)
+            if (original_file == NULL) {
                 printf("Failed to open/read original file...\n");
                 return -1;
             }
             
             // Encode the original data
-            encoded = malloc(2 * input_size);
+            unsigned char *encoded = malloc(2 * original_size);
             if (encoded == NULL) {
                 printf("Encode malloc failed...\n");
                 return -1;
             }
 
-            bytes_encoded = rle_encode(input, input_size, encoded, unit_size);
+            size_t bytes_encoded = rle_encode(original_file, original_size, encoded, unit_size);
             printf("Number of encoded bytes:  %zu\n", bytes_encoded);
 
             // Write encoded data to a file
-            const char *encoded_file = argv[3];
-            FILE *fp_enc = fopen(encoded_file, "wb");
+            const char *encoded_file_path = argv[3];
+            FILE *fp_enc = fopen(encoded_file_path, "wb");
             if (fp_enc == NULL) {
                 printf("Failed to open encoded file...\n");
                 return -1;
             }
 
-            if (write_header(fp_enc, input_size, unit_size) != 0) {
+            if (write_header(fp_enc, original_size, unit_size) != 0) {
                 printf("Error writing header to encoded file...\n");
                 return -1;
             }
@@ -227,7 +220,23 @@ int main(int argc, char *argv[]) {
             }
 
             fclose(fp_enc);
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         } else if (strcmp(argv[1], "--decode") == 0) { // Decode path ==================================
+            // Read the encoded file
+            size_t encoded_size = 0;
+            const char *encoded_file_path = argv[2];
+            unsigned char *encoded_file = read_file(encoded_file_path, &encoded_size)
+            if (input == NULL) {
+                printf("Failed to open/read original file...\n");
+                return -1;
+            }
+
+            size_t original_size = encoded_file[0];
+            size_t unit_size = encoded_file[1];
+
+            // TODO: continue decoding
+
+
             unsigned char *decoded = malloc(input_size);
             if (decoded == NULL) {
                 printf("Decode malloc failed...\n");
@@ -238,7 +247,7 @@ int main(int argc, char *argv[]) {
                 printf("Haven't encoded this file yet...\n");
                 return -1;
             }
-            bytes_decoded = rle_decode(encoded, bytes_encoded, decoded, input_size, unit_size);
+            size_t bytes_decoded = rle_decode(encoded, bytes_encoded, decoded, input_size, unit_size);
             printf("Number of decoded bytes:  %zu\n", bytes_decoded);
         } else {
             printf("Please use the format: ./rle.exe --encode/--decode <file_to_enc/dec> <file_out>\n");
