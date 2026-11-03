@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 /*
 Encode 'in' into (count, value) pairs in 'out'
@@ -141,7 +142,7 @@ unsigned char *read_file(const char *path, size_t *out_size) {
         return NULL;
     }
 
-    file_size = (size_t)input_len;
+    size_t file_size = (size_t)input_len;
     *out_size = file_size;
 
     rewind(fp);
@@ -184,7 +185,7 @@ int main(int argc, char *argv[]) {
             // Read the original file
             size_t original_size = 0;
             const char *original_file_path = argv[2];
-            unsigned char *original_file = read_file(original_file_path, &original_size)
+            unsigned char *original_file = read_file(original_file_path, &original_size);
             if (original_file == NULL) {
                 printf("Failed to open/read original file...\n");
                 return -1;
@@ -220,13 +221,14 @@ int main(int argc, char *argv[]) {
             }
 
             fclose(fp_enc);
+            free(encoded);
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         } else if (strcmp(argv[1], "--decode") == 0) { // Decode path ==================================
             // Read the encoded file
             size_t encoded_size = 0;
             const char *encoded_file_path = argv[2];
-            unsigned char *encoded_file = read_file(encoded_file_path, &encoded_size)
-            if (input == NULL) {
+            unsigned char *encoded_file = read_file(encoded_file_path, &encoded_size);
+            if (encoded_file == NULL) {
                 printf("Failed to open/read original file...\n");
                 return -1;
             }
@@ -235,20 +237,25 @@ int main(int argc, char *argv[]) {
             size_t unit_size = encoded_file[1];
 
             // TODO: continue decoding
+            // Currently no way to check if we are trying to decode an encoded file, or a normal file
 
-
-            unsigned char *decoded = malloc(input_size);
+            unsigned char *decoded = malloc(original_size);
             if (decoded == NULL) {
                 printf("Decode malloc failed...\n");
                 return -1;
             }
 
-            if (encoded == NULL) {
-                printf("Haven't encoded this file yet...\n");
-                return -1;
-            }
-            size_t bytes_decoded = rle_decode(encoded, bytes_encoded, decoded, input_size, unit_size);
+            // if (encoded == NULL) {
+            //     printf("Haven't encoded this file yet...\n");
+            //     return -1;
+            // }
+            size_t bytes_decoded = rle_decode(encoded_file, encoded_size, decoded, original_size, unit_size);
             printf("Number of decoded bytes:  %zu\n", bytes_decoded);
+
+            // TODO: write decoded data to new file
+
+
+            free(decoded);
         } else {
             printf("Please use the format: ./rle.exe --encode/--decode <file_to_enc/dec> <file_out>\n");
             return -1;
@@ -264,12 +271,9 @@ int main(int argc, char *argv[]) {
     // }
 
 
-    if (use_file = true) {
-        free(input);
-    }
-
-    free(encoded);
-    free(decoded);
+    // if (use_file = true) {
+    //     free(input);
+    // }
 
     return 0;
 }
